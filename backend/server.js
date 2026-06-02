@@ -19,7 +19,7 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:5174"],
+    origin: ["http://localhost:5173", "http://localhost:5174", "https://workforce-monitoring.vercel.app",  "https://workforce-monitoring-whtu.vercel.app"],
     credentials: true,
   })
 );
