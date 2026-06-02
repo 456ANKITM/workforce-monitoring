@@ -1,0 +1,31 @@
+Task 1: Update Your use models as per this app [Done]
+
+APIs We need 
+
+1. Admin Register [Done]
+2. Login  [Done]
+3. Logout [Done]
+4. Get Me  [Done]
+5. Enable Location 
+6. Disable Location
+7. Update Live Location [Done]
+8. Enable Camera
+9. Disable Camera 
+10. Create Employee [Done]
+11. Get All Employees
+12. Delete Employees
+13. Get Online Employees
+14. Get Employee live Location
+15. Get Single Employee detail
+
+Let's Build and Test All those APIs
+
+We need to do some extra functionalities here to make this app premium and worth taking a look at this app. 
+
+Task 1: In Admin Portal inside right sidebar component if we click on any employee and they have enabled location then it should pop  up that users in the map and if they have not enabled their location then a Error Message That user has not enabled their location or something appears. 
+
+Task 2: Let's Learn through chatGPT about Camera access and how can we view through the employee camera 
+
+Task 3: Let's Implement Camera Access feature in backend.
+
+I think we have acheived it and now we are going to deploy this application, we have to deploy this app and make it consistent first deploy backend on render and then deploy both frontend on vercel. 

@@ -1,0 +1,11 @@
+Task
+
+1. Get all online users live location through socket io and map them on map with some popup data also and track them movvement  in real time 
+
+2. Get a list of all online users in sidebar also and on select their data should pop up in map 
+
+
+1. Fix the image in the navbar to get the first letter of the name as Profile 
+2. Get All Online Employees in the sidebar 
+3. Get live location of all the Online Employee and Map them in to the our Map to show case live location and Movement in real time 
+4. Create a logout functionality

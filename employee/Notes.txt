@@ -1,0 +1,14 @@
+Task 
+
+1. Fix the Profile Image -> Show first letter of Name there 
+2. Improve Your Right Sidebar enable and disable Location Functionality and add some dummy 
+    to make it nice. 
+3. OnEnable location Share the live location through socket and update it every 5 second or something in the database 
+4. ondisable stop sharing your location admin can not view your location neither do you 
+5. on sharing location you should also view your location in real time 
+
+
+1. Fix the Profile Image in the Navbar to show 1st letter of your name there [Done]
+2. Make the Side bar with two options Enable location and Disable Location with both RTK Query Muttation and Socket location emit to the admin 
+3. Create a functionality to stop sharing your location so that it can be stop sharing your live location
+4. Create a logout functionality 

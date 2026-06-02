@@ -1,0 +1,21 @@
+Task 1: Update Your use models as per this app [Done]
+
+APIs We need 
+
+1. Admin Register [Done]
+2. Login  [Done]
+3. Logout [Done]
+4. Get Me  [Done]
+5. Enable Location 
+6. Disable Location
+7. Update Live Location [Done]
+8. Enable Camera
+9. Disable Camera 
+10. Create Employee [Done]
+11. Get All Employees
+12. Delete Employees
+13. Get Online Employees
+14. Get Employee live Location
+15. Get Single Employee detail
+
+Let's Build and Test All those APIs
