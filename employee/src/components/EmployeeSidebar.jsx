@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Navigation, Camera } from "lucide-react";
 import { useSelector } from "react-redux";
 import { getSocket } from "../socketClient";
@@ -21,175 +21,48 @@ const EmployeeSidebar = () => {
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
 
+  const socketRef = useRef(null);
   const intervalRef = useRef(null);
+
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const socket = getSocket();
+
   const peerRef = useRef(null);
 
-
-  const startWebRTC = async (adminId) => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video:true,
-        audio:false
-      })
-      streamRef.current = stream;
-      if(videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          {urls:"stun:stun.l.google.com:19302"}
-        ]
-      })
-      peerRef.current = pc;
-
-      // Add tracks 
-      stream.getTracks().forEach((track)=>{
-        pc.addTrack(track,stream)
-      })
-
-      // Ice Candidates
-      pc.onicecandidate = (event) => {
-        if(event.candidate) {
-          socket.emit("camera:ice-candidate", {
-            to:adminId,
-            candidate:event.candidate
-          })
-        }
-      }
-
-
-      // Create offer 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      socket.emit("camera:offer",{
-        to: adminId, 
-        offer
-      })
-      console.log("Offer sent to admin")
-    } catch (error) {
-       console.log("WebRTC Error", error)
-    }
-  }
-
-  useEffect(()=>{
-    if(!socket) return;
-    socket.on("camera:answer", async ({answer}) =>{
-      if(peerRef.current) {
-        await peerRef.current.setRemoteDescription(answer);
-        console.log("Connection established with admin")
-      }
-    })
-    return () => {
-      socket.off("camera:answer")
-    }
-  })
-
-
-  useEffect(()=>{
-    if(!socket) return;
-    socket.on("camera:ice-candidate", async ({candidate}) => {
-      try {
-        if(peerRef.current) {
-          await peerRef.current.addIceCandidate(candidate)
-        }
-      } catch (error) {
-        console.log(error)
-      }
-    })
-    return () => {
-      socket.off("camera:ice-candidate")
-    }
-  },[])
-
-  // Sync local state with redux user
+  // =========================
+  // SOCKET INIT (SAFE)
+  // =========================
   useEffect(() => {
-    setLocationEnabled(user?.locationEnabled || false);
-  }, [user?.locationEnabled]);
+    socketRef.current = getSocket();
 
-  useEffect(() => {
-    setCameraEnabled(user?.cameraEnabled || false);
-  }, [user?.cameraEnabled]);
-
-  useEffect(()=>{
-    if(!socket) return;
-
-    socket.on("camera:request", async ({from}) => {
-      console.log("Camera requested by admin:", from)
-      await startWebRTC(from)
-    })
     return () => {
-      socket.off("camera:request")
-    }
-  },[])
+      socketRef.current = null;
+    };
+  }, []);
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video:true,
-        audio: false
-      });
+  const socket = socketRef.current;
 
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (error) {
-      console.log("Camera Error:", error);
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-  };
-
-  const toogleCamera = async () => {
-    try {
-      if (cameraEnabled) {
-        setCameraEnabled(false);
-        await disableCamera().unwrap();
-        stopCamera();
-      } else {
-        setCameraEnabled(true);
-        await enableCamera().unwrap();
-        startCamera();
-      }
-    } catch (error) {
-      console.log(error);
-      setCameraEnabled((prev) => !prev);
-    }
-  };
-
-  const startTracking = () => {
+  // =========================
+  // LOCATION TRACKING
+  // =========================
+  const startTracking = useCallback(() => {
     if (intervalRef.current) return;
 
-    const socket = getSocket();
-
     intervalRef.current = setInterval(() => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
+      const s = socketRef.current;
+      if (!s) return;
 
-          socket?.emit("location:update", {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+
+          s.emit("location:update", {
             latitude,
             longitude,
             accuracy,
           });
-
-          console.log("📡 Location Sent:", {
-            latitude,
-            longitude,
-          });
         },
-        (err) => console.log(err),
+        (err) => console.log("Geo error:", err),
         {
           enableHighAccuracy: true,
           maximumAge: 0,
@@ -197,50 +70,192 @@ const EmployeeSidebar = () => {
         }
       );
     }, 3000);
-  };
+  }, []);
 
-  const stopTracking = () => {
+  const stopTracking = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+  }, []);
+
+  // =========================
+  // CAMERA STREAM (LOCAL)
+  // =========================
+  const startCameraPreview = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.log("Camera error:", err);
+    }
   };
 
+  const stopCameraPreview = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+  };
+
+  // =========================
+  // WEBCAM WEBRTC (EMPLOYEE SIDE)
+  // =========================
+  const startWebRTC = useCallback(async (adminId) => {
+    try {
+      const s = socketRef.current;
+      if (!s) return;
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      });
+
+      peerRef.current = pc;
+
+      stream.getTracks().forEach((track) => {
+        pc.addTrack(track, stream);
+      });
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          s.emit("camera:ice-candidate", {
+            employeeId: user?._id,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      s.emit("camera:offer", {
+        employeeId: user?._id,
+        offer,
+      });
+    } catch (err) {
+      console.log("WebRTC error:", err);
+    }
+  }, [user]);
+
+  // =========================
+  // SOCKET EVENTS (SAFE ONCE)
+  // =========================
+  useEffect(() => {
+    const s = socketRef.current;
+    if (!s) return;
+
+    const handleRequest = async ({ from }) => {
+      await startWebRTC(from);
+    };
+
+    const handleAnswer = async ({ answer }) => {
+      if (peerRef.current) {
+        await peerRef.current.setRemoteDescription(answer);
+      }
+    };
+
+    const handleIce = async ({ candidate }) => {
+      try {
+        if (peerRef.current) {
+          await peerRef.current.addIceCandidate(candidate);
+        }
+      } catch (err) {
+        console.log(err);
+      }
+    };
+
+    s.on("camera:request", handleRequest);
+    s.on("camera:answer", handleAnswer);
+    s.on("camera:ice-candidate", handleIce);
+
+    return () => {
+      s.off("camera:request", handleRequest);
+      s.off("camera:answer", handleAnswer);
+      s.off("camera:ice-candidate", handleIce);
+    };
+  }, [startWebRTC]);
+
+  // =========================
+  // SYNC USER STATE
+  // =========================
+  useEffect(() => {
+    setLocationEnabled(!!user?.locationEnabled);
+    setCameraEnabled(!!user?.cameraEnabled);
+  }, [user]);
+
+  // =========================
+  // LOCATION TOGGLE
+  // =========================
   const toggleLocation = async () => {
     try {
       if (locationEnabled) {
         setLocationEnabled(false);
-
         await disableLocation().unwrap();
-
         stopTracking();
       } else {
         setLocationEnabled(true);
-
         await enableLocation().unwrap();
-
         startTracking();
       }
-    } catch (error) {
-      console.log(error);
-
-      setLocationEnabled((prev) => !prev);
+    } catch (err) {
+      console.log(err);
+      setLocationEnabled((p) => !p);
     }
   };
 
-  useEffect(() => {
-    if (locationEnabled) {
-      startTracking();
-    } else {
-      stopTracking();
+  // =========================
+  // CAMERA TOGGLE
+  // =========================
+  const toggleCamera = async () => {
+    try {
+      if (cameraEnabled) {
+        setCameraEnabled(false);
+        await disableCamera().unwrap();
+        stopCameraPreview();
+      } else {
+        setCameraEnabled(true);
+        await enableCamera().unwrap();
+        startCameraPreview();
+      }
+    } catch (err) {
+      console.log(err);
+      setCameraEnabled((p) => !p);
     }
+  };
 
-    return () => stopTracking();
-  }, [locationEnabled]);
+  // =========================
+  // CLEANUP
+  // =========================
+  useEffect(() => {
+    return () => {
+      stopTracking();
+      stopCameraPreview();
+    };
+  }, []);
 
   return (
     <aside className="w-72 bg-white h-full p-4">
-      {/* Location Toggle */}
+
+      {/* LOCATION */}
       <div className="flex items-center justify-between border rounded-lg p-3">
         <div className="flex items-center gap-3">
           <Navigation size={18} />
@@ -249,19 +264,19 @@ const EmployeeSidebar = () => {
 
         <button
           onClick={toggleLocation}
-          className={`relative w-14 h-7 rounded-full transition-all duration-300 ${
+          className={`relative w-14 h-7 rounded-full ${
             locationEnabled ? "bg-blue-600" : "bg-gray-400"
           }`}
         >
           <div
-            className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-all duration-300 ${
+            className={`absolute top-1 h-5 w-5 bg-white rounded-full transition-all ${
               locationEnabled ? "translate-x-8" : "translate-x-1"
             }`}
           />
         </button>
       </div>
 
-      {/* Camera */}
+      {/* CAMERA */}
       <div className="mt-4 border rounded-lg p-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -270,30 +285,28 @@ const EmployeeSidebar = () => {
           </div>
 
           <button
-            onClick={toogleCamera}
-            className={`relative w-14 h-7 rounded-full transition-all duration-300 ${
-              cameraEnabled ? "bg-blue-800" : "bg-gray-400"
+            onClick={toggleCamera}
+            className={`relative w-14 h-7 rounded-full ${
+              cameraEnabled ? "bg-blue-700" : "bg-gray-400"
             }`}
           >
             <div
-              className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-all duration-300 ${
+              className={`absolute top-1 h-5 w-5 bg-white rounded-full transition-all ${
                 cameraEnabled ? "translate-x-8" : "translate-x-1"
               }`}
             />
           </button>
         </div>
 
-        {cameraEnabled ? (
-          <div className="mt-2 rounded-lg overflow-hidden border">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-40 object-cover bg-black"
-            />
-          </div>
-        ) : null}
+        {cameraEnabled && (
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className="w-full h-40 bg-black rounded"
+          />
+        )}
       </div>
     </aside>
   );
